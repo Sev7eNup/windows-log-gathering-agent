@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Activity, Server, MessageSquare, Settings, AlertCircle } from 'lucide-react'
 import QuickActions from './components/QuickActions'
+import ClientSelector from './components/ClientSelector'
 import ChatInterface from './components/ChatInterface'
 import SystemStatus from './components/SystemStatus'
 import LogViewer from './components/LogViewer'
@@ -116,11 +117,26 @@ const App: React.FC = () => {
             </GlassSurface>
           </motion.div>
 
+          {/* Client Selector */}
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className="w-full"
+          >
+            <GlassSurface className="p-6">
+              <ClientSelector 
+                onLogUpdate={setLogEntries} 
+                onResultsUpdate={setAnalysisResults}
+              />
+            </GlassSurface>
+          </motion.div>
+
           {/* Results - Full Width */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
+            transition={{ delay: 0.4 }}
             className="w-full"
           >
             <GlassSurface className="p-6">
@@ -132,7 +148,7 @@ const App: React.FC = () => {
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.5 }}
             className="w-full"
           >
             {/* Tab Navigation */}

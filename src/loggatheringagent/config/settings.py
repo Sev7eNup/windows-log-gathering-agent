@@ -36,7 +36,7 @@ class MachinesConfig(BaseModel):
 
 class Settings(BaseSettings):
     config_file: str = Field(default="src/loggatheringagent/config/machines.yaml")
-    log_tail_lines: int = Field(default=1000)
+    log_tail_lines: int = Field(default=2000)
     api_host: str = Field(default="0.0.0.0")
     api_port: int = Field(default=8000)
     debug: bool = Field(default=False)

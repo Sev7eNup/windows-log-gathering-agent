@@ -155,14 +155,26 @@ class WindowsLogAnalyzer:
             - Cache management problems
             """
         elif "cbs.log" in source_lower:
-            log_type = "Component-Based Servicing"
+            log_type = "Component-Based Servicing (CBS.log)"
             specific_instructions = """
-            Focus on:
-            - Windows component installation failures
-            - Package integrity issues
-            - Dependency resolution problems
-            - System file corruption
-            """
+            Focus specifically on:
+            - Package installation failures with exact package names, versions, and error codes
+            - TrustedInstaller service operations and permission errors
+            - Component store corruption with specific file paths and manifest issues
+            - SxS assembly conflicts with detailed version information
+            - System file corruption with specific .dll/.exe/.sys file names
+            - Dependency resolution problems with component hierarchies
+            - DISM operation failures and servicing stack issues
+            - WinSxS store problems and cleanup operations
+            - Registry operations and permissions errors
+            - File system operations and access denied errors
+            
+            Include specific details:
+            - Error codes (0x hex values, HRESULT codes)
+            - File paths and registry keys
+            - Package GUIDs and version numbers
+            - Timestamps and operation sequences
+            - Service names and process IDs"""
         elif "windowsupdate" in source_lower or "get-windowsupdatelog" in source_lower:
             log_type = "Windows Update Log"
             specific_instructions = """
@@ -218,7 +230,7 @@ RESPOND WITH ONLY THE JSON OBJECT - NO OTHER TEXT:
 
 LOG CONTENT TO ANALYZE:
 ---
-{log_result.content[:8000]}  # Limit to ~8k chars to avoid token limits
+{log_result.content[:50000]}  # Increased limit to ensure full CBS log analysis (~2000 lines)
 ---"""
         
         return prompt
