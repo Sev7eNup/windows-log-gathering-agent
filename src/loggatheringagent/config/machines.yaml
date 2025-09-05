@@ -1,0 +1,36 @@
+credentials:
+  local_admin:
+    username: "Administrator"  # Local admin account
+    password: "your_password"  # Change this to your actual password
+    domain: ""  # No domain for local machine
+
+clients:
+  - name: "LOCALHOST"
+    hostname: "localhost"
+    ip: "127.0.0.1"
+    credentials: "local_admin"
+    log_paths:
+      # File-based log collection
+      windows_logs:
+        - "C$/Windows/Logs/CBS/CBS.log"
+    powershell_commands:
+      - "Get-WinEvent -LogName System -MaxEvents 250 | Where-Object {$_.LevelDisplayName -eq 'Error' -or $_.LevelDisplayName -eq 'Critical'}"
+      - "Get-WinEvent -LogName Application -MaxEvents 250 | Where-Object {$_.LevelDisplayName -eq 'Error' -or $_.LevelDisplayName -eq 'Critical'}"
+      - "Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, WindowsBuildLabEx, WindowsCurrentVersion"
+      - "Get-Process | Where-Object {$_.CPU -gt 10} | Sort-Object CPU -Descending | Select-Object -First 10 Name, CPU, WorkingSet"
+
+llm_config:
+  endpoint: "http://127.0.0.1:1234/v1"  # Local OpenAI-compatible endpoint
+  model: "llama3.1:8b"  # Adjust model name as needed
+  max_tokens: 4000
+  temperature: 0.1
+  system_prompt: |
+    You are a Windows system troubleshooting specialist. Analyze the provided log entries
+    for errors, warnings, and potential issues. Focus on:
+    - Windows Update installation problems
+    - System service failures and crashes
+    - Application errors and exceptions
+    - Component-Based Servicing (CBS) issues
+    - .NET Framework installation problems
+    - Driver and hardware-related errors
+    Provide clear, actionable recommendations for resolving any issues found. your analysis and recommendations must be concrete and precise. Look for error codes and their meanings.

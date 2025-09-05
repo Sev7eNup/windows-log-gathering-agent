@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  }
+}
+
+@layer components {
+  .glass-surface {
+    @apply backdrop-blur-md bg-dark-200/40 border border-primary-500/20 rounded-xl shadow-xl;
+  }
+  
+  .glass-button {
+    @apply backdrop-blur-sm bg-primary-500/10 border border-primary-400/20 rounded-lg px-4 py-2 
+           text-white hover:bg-primary-500/20 transition-all duration-200
+           hover:shadow-lg hover:scale-105 active:scale-95;
+  }
+  
+  .status-indicator {
+    @apply inline-block w-2 h-2 rounded-full animate-pulse;
+  }
+  
+  .log-entry {
+    @apply p-3 rounded-lg border-l-4 transition-all duration-200 
+           hover:shadow-lg hover:translate-x-1;
+  }
+  
+  .log-entry.error {
+    @apply bg-error-500/10 border-l-error-500 text-dark-800;
+  }
+  
+  .log-entry.warning {
+    @apply bg-warning-500/10 border-l-warning-500 text-dark-800;
+  }
+  
+  .log-entry.info {
+    @apply bg-dark-300/20 border-l-dark-600 text-dark-700;
+  }
+  
+  .log-entry.success {
+    @apply bg-success-500/10 border-l-success-500 text-dark-800;
+  }
+  
+  .log-entry.debug {
+    @apply bg-primary-500/10 border-l-primary-500 text-dark-800;
+  }
+}

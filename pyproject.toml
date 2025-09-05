@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "loggatheringagent"
+version = "0.1.0"
+description = "Centralized Windows deployment log gathering agent with LLM analysis"
+authors = [{name = "Agent", email = "agent@example.com"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.4.0",
+    "pydantic-settings>=2.0.0",
+    "httpx>=0.25.0",
+    "rich>=13.6.0",
+    "typer>=0.9.0",
+    "pyyaml>=6.0.1",
+    "structlog>=23.2.0",
+    "mcp>=1.0.0",
+    "smbprotocol>=1.12.0",
+    "pywinrm>=0.4.3",
+    "requests-ntlm>=1.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=23.9.1",
+    "isort>=5.12.0",
+    "flake8>=6.1.0",
+    "mypy>=1.6.1",
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+]
+
+[project.scripts]
+loggatheringagent = "loggatheringagent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.black]
+line-length = 100
+target-version = ['py39']
+
+[tool.isort]
+profile = "black"
+line_length = 100
