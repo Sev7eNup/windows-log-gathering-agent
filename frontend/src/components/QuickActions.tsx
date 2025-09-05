@@ -269,22 +269,6 @@ const QuickActions: React.FC<QuickActionsProps> = ({ onLogUpdate, onResultsUpdat
         ))}
       </div>
 
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="mt-6 p-4 rounded-xl bg-primary-500/10 border border-primary-400/30"
-      >
-        <div className="flex items-center gap-2 mb-2">
-          <CheckCircle className="w-4 h-4 text-primary-400" />
-          <span className="text-sm font-medium text-primary-300">Tips</span>
-        </div>
-        <ul className="text-xs text-dark-600 space-y-1">
-          <li>• Use "List Clients" to verify connections</li>
-          <li>• "Analyze All" processes all available logs</li>
-          <li>• Check system health regularly</li>
-        </ul>
-      </motion.div>
     </div>
   )
 }
