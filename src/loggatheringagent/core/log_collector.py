@@ -10,6 +10,8 @@ from datetime import datetime
 
 from ..config.settings import Settings, MachinesConfig, ClientConfig, CredentialConfig
 from ..mcp_clients.direct_local_client import DirectLocalClient
+from ..mcp_clients.smb_client import SMBMCPClient
+from ..mcp_clients.powershell_client import PowerShellMCPClient
 
 logger = logging.getLogger(__name__)
 
@@ -85,17 +87,38 @@ class WindowsLogCollector:
         log_results = []
         errors = []
         
-        # Collect all logs using direct local client
-        async with DirectLocalClient() as local_client:
-            # Collect file-based logs
-            smb_results = await self._collect_file_logs(client_config, cred_config, local_client)
-            log_results.extend(smb_results["results"])
-            errors.extend(smb_results["errors"])
-            
-            # Collect PowerShell-based logs
-            ps_results = await self._collect_powershell_logs(client_config, cred_config, local_client)
-            log_results.extend(ps_results["results"])
-            errors.extend(ps_results["errors"])
+        # Choose client based on hostname - use DirectLocalClient for localhost, MCP clients for remote
+        is_localhost = client_config.hostname in ['localhost', '127.0.0.1']
+        
+        if is_localhost:
+            # Use DirectLocalClient for localhost
+            async with DirectLocalClient() as local_client:
+                # Collect file-based logs
+                smb_results = await self._collect_file_logs(client_config, cred_config, local_client)
+                log_results.extend(smb_results["results"])
+                errors.extend(smb_results["errors"])
+                
+                # Collect PowerShell-based logs
+                ps_results = await self._collect_powershell_logs(client_config, cred_config, local_client)
+                log_results.extend(ps_results["results"])
+                errors.extend(ps_results["errors"])
+        else:
+            # Use MCP clients for remote machines
+            try:
+                # Collect file-based logs using SMB MCP client
+                async with SMBMCPClient() as smb_client:
+                    smb_results = await self._collect_file_logs_mcp(client_config, cred_config, smb_client)
+                    log_results.extend(smb_results["results"])
+                    errors.extend(smb_results["errors"])
+                
+                # Collect PowerShell-based logs using PowerShell MCP client
+                async with PowerShellMCPClient() as ps_client:
+                    ps_results = await self._collect_powershell_logs_mcp(client_config, cred_config, ps_client)
+                    log_results.extend(ps_results["results"])
+                    errors.extend(ps_results["errors"])
+            except Exception as e:
+                logger.error(f"MCP client error for {client_config.hostname}: {e}")
+                errors.append(f"MCP client connection failed: {e}")
         
         overall_success = len(errors) == 0 and any(result.success for result in log_results)
         
@@ -286,3 +309,136 @@ class WindowsLogCollector:
                 final_results.append(result)
         
         return final_results
+    
+    async def _collect_file_logs_mcp(self, client_config: ClientConfig, 
+                                   cred_config: CredentialConfig, smb_client: SMBMCPClient) -> Dict[str, Any]:
+        """Collect file-based logs using SMB MCP client for remote machines."""
+        results = []
+        errors = []
+        
+        try:
+            # Collect all file-based logs
+            all_log_paths = []
+            for category, paths in client_config.log_paths.items():
+                all_log_paths.extend(paths)
+            
+            for log_path in all_log_paths:
+                try:
+                    logger.info(f"Reading remote log file: {log_path}")
+                    
+                    result = await smb_client.read_file_tail(
+                        hostname=client_config.hostname,
+                        username=cred_config.username,
+                        password=cred_config.password,
+                        file_path=log_path,
+                        lines=self.settings.log_tail_lines,
+                        domain=cred_config.domain
+                    )
+                    
+                    success = result.get("success", False)
+                    content = result.get("content", "")
+                    lines_read = result.get("lines_read", 0)
+                    
+                    results.append(LogCollectionResult(
+                        source=f"SMB:{log_path}",
+                        success=success,
+                        content=content,
+                        error=result.get("error") if not success else None,
+                        lines_count=lines_read
+                    ))
+                    
+                except Exception as e:
+                    error_msg = f"Failed to read {log_path}: {str(e)}"
+                    logger.error(error_msg)
+                    results.append(LogCollectionResult(
+                        source=f"SMB:{log_path}",
+                        success=False,
+                        content="",
+                        error=error_msg
+                    ))
+        
+        except Exception as e:
+            error_msg = f"SMB MCP client error: {str(e)}"
+            logger.error(error_msg)
+            errors.append(error_msg)
+        
+        return {"results": results, "errors": errors}
+    
+    async def _collect_powershell_logs_mcp(self, client_config: ClientConfig, 
+                                         cred_config: CredentialConfig, ps_client: PowerShellMCPClient) -> Dict[str, Any]:
+        """Collect PowerShell-based logs using PowerShell MCP client for remote machines."""
+        results = []
+        errors = []
+        
+        try:
+            for command in client_config.powershell_commands:
+                try:
+                    logger.info(f"Executing remote PowerShell command: {command}")
+                    
+                    if "Get-WindowsUpdateLog" in command:
+                        # Special handling for Windows Update Log
+                        result = await ps_client.get_windows_update_log(
+                            hostname=client_config.hostname,
+                            username=cred_config.username,
+                            password=cred_config.password
+                        )
+                    elif "Get-WinEvent" in command:
+                        # Extract parameters for Event Log query
+                        if "System" in command:
+                            log_name = "System"
+                        elif "Application" in command:
+                            log_name = "Application"
+                        else:
+                            log_name = "System"
+                        
+                        # Extract max events
+                        max_events = 100
+                        if "MaxEvents" in command:
+                            try:
+                                max_events = int(command.split("MaxEvents")[1].split()[0])
+                            except:
+                                max_events = 100
+                        
+                        result = await ps_client.get_event_log(
+                            hostname=client_config.hostname,
+                            username=cred_config.username,
+                            password=cred_config.password,
+                            log_name=log_name,
+                            max_events=max_events
+                        )
+                    else:
+                        # Generic PowerShell command execution
+                        result = await ps_client.execute_powershell(
+                            hostname=client_config.hostname,
+                            username=cred_config.username,
+                            password=cred_config.password,
+                            command=command
+                        )
+                    
+                    success = result.get("success", False)
+                    content = result.get("stdout", "") or result.get("content", "")
+                    
+                    results.append(LogCollectionResult(
+                        source=f"PowerShell:{command[:50]}...",
+                        success=success,
+                        content=content,
+                        error=result.get("stderr") or result.get("error") if not success else None,
+                        lines_count=len(content.split('\n')) if content else 0
+                    ))
+                    
+                except Exception as e:
+                    error_msg = f"PowerShell command '{command}' failed: {str(e)}"
+                    logger.error(error_msg)
+                    results.append(LogCollectionResult(
+                        source=f"PowerShell:{command[:50]}...",
+                        success=False,
+                        content="",
+                        error=error_msg
+                    ))
+        
+        except Exception as e:
+            error_msg = f"PowerShell MCP client error: {str(e)}"
+            logger.error(error_msg)
+            errors.append(error_msg)
+        
+        return {"results": results, "errors": errors}

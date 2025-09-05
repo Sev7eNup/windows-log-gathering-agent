@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Users, Play, RefreshCw, Loader2, CheckCircle, XCircle, Trash2 } from 'lucide-react'
+import { Users, Play, RefreshCw, Loader2, CheckCircle, XCircle, Trash2, FileX } from 'lucide-react'
 
 interface QuickActionsProps {
   onLogUpdate: (updateFn: (prev: string[]) => string[]) => void
@@ -113,7 +113,13 @@ const QuickActions: React.FC<QuickActionsProps> = ({ onLogUpdate, onResultsUpdat
   }
 
   const clearLogs = () => {
-    onLogUpdate(() => ['🗑️ Logs cleared'])
+    onLogUpdate(() => [])
+  }
+
+  const clearAnalysis = () => {
+    if (onResultsUpdate) {
+      onResultsUpdate('Results will appear here...')
+    }
   }
 
   const pollAnalysisResults = async (requestId: string) => {
@@ -191,6 +197,14 @@ const QuickActions: React.FC<QuickActionsProps> = ({ onLogUpdate, onResultsUpdat
       icon: Trash2,
       color: 'error',
       onClick: clearLogs
+    },
+    {
+      id: 'clear-analysis',
+      label: 'Clear Analysis',
+      description: 'Clear analysis output',
+      icon: FileX,
+      color: 'error',
+      onClick: clearAnalysis
     }
   ]
 
@@ -201,7 +215,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({ onLogUpdate, onResultsUpdat
         <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {actions.map((action, index) => (
           <motion.button
             key={action.id}
