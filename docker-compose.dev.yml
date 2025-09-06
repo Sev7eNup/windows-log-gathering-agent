@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # Backend API Service (Development)
+  backend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: log-agent-backend-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - LGA_API_HOST=0.0.0.0
+      - LGA_API_PORT=8000
+      - LGA_DEBUG=true
+      - LGA_LOG_LEVEL=DEBUG
+      - LGA_CONFIG_FILE=/app/config/machines.yaml
+    volumes:
+      - ./src:/app/src:rw
+      - ./mcp_servers:/app/mcp_servers:rw
+      - ./config:/app/config:ro
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - log-agent-dev-network
+    restart: unless-stopped
+    depends_on:
+      - redis
+    command: ["python", "-m", "src.loggatheringagent.api.main", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # Frontend Service (Development with hot reload)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: log-agent-frontend-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend/src:/app/src:rw
+      - ./frontend/public:/app/public:rw
+    networks:
+      - log-agent-dev-network
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  # Redis for development
+  redis:
+    image: redis:7-alpine
+    container_name: log-agent-redis-dev
+    ports:
+      - "6379:6379"
+    networks:
+      - log-agent-dev-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+networks:
+  log-agent-dev-network:
+    driver: bridge
+    name: log-agent-dev-network
