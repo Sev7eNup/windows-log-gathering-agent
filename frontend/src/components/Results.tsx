@@ -1,6 +1,7 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { FileText, Copy, Download } from 'lucide-react'
+import { FileText, Copy, Download, Eye, Expand, Minimize2 } from 'lucide-react'
+import JsonTreeViewer from './JsonTreeViewer'
 
 interface ResultsProps {
   results: string
@@ -8,11 +9,25 @@ interface ResultsProps {
 }
 
 const Results: React.FC<ResultsProps> = ({ results }) => {
+  const [isTreeViewOpen, setIsTreeViewOpen] = useState(false)
+  const [parsedJson, setParsedJson] = useState<any>(null)
+  const [isExpanded, setIsExpanded] = useState(false)
+
   const copyToClipboard = () => {
     navigator.clipboard.writeText(results)
   }
 
   const isJsonResults = results.startsWith('{') || results.startsWith('[')
+
+  const openTreeView = () => {
+    try {
+      const parsed = JSON.parse(results)
+      setParsedJson(parsed)
+      setIsTreeViewOpen(true)
+    } catch (error) {
+      console.error('Failed to parse JSON:', error)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -22,6 +37,22 @@ const Results: React.FC<ResultsProps> = ({ results }) => {
         
         {results !== 'Results will appear here...' && (
           <div className="ml-auto flex items-center gap-2">
+            {isJsonResults && (
+              <button
+                onClick={openTreeView}
+                className="p-2 text-primary-400 hover:text-primary-300 transition-colors duration-200 hover:bg-primary-500/20 rounded-lg"
+                title="View Details"
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="p-2 text-primary-400 hover:text-primary-300 transition-colors duration-200 hover:bg-primary-500/20 rounded-lg"
+              title={isExpanded ? "Collapse" : "Expand"}
+            >
+              {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Expand className="w-4 h-4" />}
+            </button>
             <button
               onClick={copyToClipboard}
               className="p-2 text-primary-400 hover:text-primary-300 transition-colors duration-200 hover:bg-primary-500/20 rounded-lg"
@@ -36,7 +67,7 @@ const Results: React.FC<ResultsProps> = ({ results }) => {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="min-h-[400px] p-6 rounded-xl backdrop-blur-sm bg-dark-200/40 border border-primary-500/20 shadow-xl"
+        className="p-6 rounded-xl backdrop-blur-sm bg-dark-200/40 border border-primary-500/20 shadow-xl"
       >
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-primary-500/20 rounded-lg">
@@ -46,15 +77,30 @@ const Results: React.FC<ResultsProps> = ({ results }) => {
         </div>
         
         <div className="relative">
-          <pre className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
-            isJsonResults 
-              ? 'font-mono text-white bg-dark-300/30 p-6 rounded-lg shadow-inner font-medium border border-primary-400/30' 
-              : 'text-white bg-dark-300/30 p-6 rounded-lg shadow-inner font-medium border border-primary-400/30'
-          }`}>
-            {results}
-          </pre>
+          <div 
+            className={`${isExpanded ? 'max-h-none' : 'max-h-[300px]'} overflow-y-auto transition-all duration-300 scrollbar-thin scrollbar-track-dark-400/20 scrollbar-thumb-orange-500/60 hover:scrollbar-thumb-orange-400/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full`}
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(251, 146, 60, 0.6) rgba(55, 65, 81, 0.2)'
+            }}
+          >
+            <pre className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
+              isJsonResults 
+                ? 'font-mono text-white bg-dark-300/30 p-6 rounded-lg shadow-inner font-medium border border-primary-400/30' 
+                : 'text-white bg-dark-300/30 p-6 rounded-lg shadow-inner font-medium border border-primary-400/30'
+            }`}>
+              {results}
+            </pre>
+          </div>
         </div>
       </motion.div>
+
+      {/* JSON Tree Viewer Modal */}
+      <JsonTreeViewer
+        data={parsedJson}
+        isOpen={isTreeViewOpen}
+        onClose={() => setIsTreeViewOpen(false)}
+      />
     </div>
   )
 }

@@ -147,8 +147,12 @@ const LogViewer: React.FC<LogViewerProps> = ({ entries }) => {
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
-        className="h-96 overflow-y-auto space-y-2 scrollbar-thin scrollbar-track-dark-300 scrollbar-thumb-primary-500 pr-2"
-        style={{ scrollBehavior: autoScroll ? 'smooth' : 'auto' }}
+        className="h-96 overflow-y-auto space-y-2 scrollbar-thin scrollbar-track-dark-400/20 scrollbar-thumb-orange-500/60 hover:scrollbar-thumb-orange-400/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full pr-2"
+        style={{ 
+          scrollBehavior: autoScroll ? 'smooth' : 'auto',
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgba(251, 146, 60, 0.6) rgba(55, 65, 81, 0.2)'
+        }}
       >
         <AnimatePresence initial={false}>
           {logEntries.length === 0 ? (
