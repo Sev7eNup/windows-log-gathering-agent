@@ -250,7 +250,7 @@ LOG CONTENT TO ANALYZE:
                 }
                 
                 response = await client.post(
-                    f"{self.llm_config.endpoint}/chat/completions",
+                    f"{self.llm_config.endpoint}/v1/chat/completions",
                     json=payload,
                     headers={"Content-Type": "application/json"}
                 )
@@ -398,7 +398,14 @@ KEY FINDINGS:
         
         for analysis in log_analyses:
             if analysis.issues_found:
-                summary_prompt += f"\n{analysis.source}: {', '.join(analysis.issues_found[:2])}"
+                # Convert issues to strings to handle dict/object issues
+                issues_str = []
+                for issue in analysis.issues_found[:2]:
+                    if isinstance(issue, str):
+                        issues_str.append(issue)
+                    else:
+                        issues_str.append(str(issue))
+                summary_prompt += f"\n{analysis.source}: {', '.join(issues_str)}"
         
         summary_prompt += "\n\nProvide a 2-3 sentence executive summary highlighting the most critical issues and overall system health."
         
@@ -430,7 +437,16 @@ KEY FINDINGS:
         action_items = []
         
         for analysis in log_analyses:
-            action_items.extend(analysis.recommendations)
+            # Ensure recommendations are converted to strings
+            for recommendation in analysis.recommendations:
+                if isinstance(recommendation, str):
+                    action_items.append(recommendation)
+                elif isinstance(recommendation, dict):
+                    # Convert dict to string representation
+                    action_items.append(str(recommendation))
+                else:
+                    # Convert other types to string
+                    action_items.append(str(recommendation))
         
         # Deduplicate while preserving order
         unique_items = []
