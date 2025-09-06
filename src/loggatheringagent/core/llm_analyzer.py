@@ -108,11 +108,24 @@ class WindowsLogAnalyzer:
     async def _analyze_single_log(self, log_result: LogCollectionResult) -> LogAnalysisResult:
         """Analyze a single log using LLM."""
         try:
+            # Add larger delay to prevent race conditions with concurrent requests
+            await asyncio.sleep(1.0)
+            
             # Prepare prompt based on log source type
             prompt = self._create_analysis_prompt(log_result)
             
-            # Call LLM
-            response = await self._call_llm(prompt)
+            # Call LLM with retry logic
+            max_retries = 2
+            for attempt in range(max_retries + 1):
+                try:
+                    response = await self._call_llm(prompt)
+                    break
+                except Exception as e:
+                    if attempt == max_retries:
+                        raise e
+                    else:
+                        logger.warning(f"LLM call attempt {attempt + 1} failed for {log_result.source}: {e}, retrying in 2 seconds...")
+                        await asyncio.sleep(2.0)
             
             # Parse LLM response
             parsed_result = self._parse_llm_response(response, log_result.source)
@@ -129,6 +142,47 @@ class WindowsLogAnalyzer:
                 severity="error",
                 confidence=0.0
             )
+    
+    def _preprocess_json_string(self, json_str: str) -> str:
+        """Preprocess JSON string to fix common issues."""
+        try:
+            # First attempt - try to load as-is
+            json.loads(json_str)
+            return json_str
+        except json.JSONDecodeError:
+            pass
+        
+        # Fix common issues
+        processed = json_str.strip()
+        
+        # Fix truncated JSON - if missing closing brace, add it
+        if processed.startswith('{') and not processed.endswith('}'):
+            # Count braces to see if we need to close
+            open_braces = processed.count('{')
+            close_braces = processed.count('}')
+            if open_braces > close_braces:
+                processed += '}' * (open_braces - close_braces)
+        
+        # Replace problematic Windows path backslashes in strings
+        import re
+        
+        # Find all string values and properly escape backslashes
+        def fix_backslashes_in_string(match):
+            content = match.group(1)
+            # Escape single backslashes that aren't already escaped
+            content = re.sub(r'(?<!\\)\\(?![\\"])', r'\\\\', content)
+            return f'"{content}"'
+        
+        # Apply to string values only (between quotes)
+        processed = re.sub(r'"([^"]*(?:\\.[^"]*)*)"', fix_backslashes_in_string, processed)
+        
+        # Try to parse again
+        try:
+            json.loads(processed)
+            return processed
+        except json.JSONDecodeError:
+            # Still failing - return original for fallback handling
+            return json_str
     
     def _create_analysis_prompt(self, log_result: LogCollectionResult) -> str:
         """Create specialized prompt based on log source type."""
@@ -209,28 +263,29 @@ LOG TYPE: {log_type}
 
 {specific_instructions}
 
-CRITICAL: You must respond ONLY with valid JSON. NO markdown, NO explanations, NO extra text.
+CRITICAL: You must respond ONLY with a valid JSON object. DO NOT include markdown code blocks, explanations, prefixes like "Here is the JSON object:", or any other text. Your response must start with {{ and end with }}.
 
 Required JSON format:
 {{
-    "analysis": "Your detailed analysis here",
-    "issues_found": ["List specific issues found"],
-    "recommendations": ["List specific recommendations"], 
+    "analysis": "Provide comprehensive technical analysis following the system prompt requirements above. Include specific error codes, file paths, registry keys, component versions, and detailed technical explanations as specified in the system prompt.",
+    "issues_found": ["List specific issues found with technical details"],
+    "recommendations": ["List specific actionable recommendations with exact commands and technical details"], 
     "severity": "info|warning|error|critical",
     "confidence": 0.85
 }}
 
 ANALYSIS INSTRUCTIONS:
-1. Identify all errors, warnings, and potential issues
-2. Categorize severity: info, warning, error, critical  
-3. Provide specific, actionable recommendations
-4. Include confidence level (0.0 to 1.0)
+1. Follow ALL requirements from the system prompt above for technical depth and specificity
+2. For CBS logs: Include package names, versions, error codes, file paths, registry keys as specified
+3. For Event logs: Include specific error codes, service names, process IDs as specified  
+4. For all logs: Provide the detailed technical analysis format required by the system prompt
+5. Include confidence level (0.0 to 1.0)
 
 RESPOND WITH ONLY THE JSON OBJECT - NO OTHER TEXT:
 
 LOG CONTENT TO ANALYZE:
 ---
-{log_result.content[:50000]}  # Increased limit to ensure full CBS log analysis (~2000 lines)
+{log_result.content[:8000]}
 ---"""
         
         return prompt
@@ -238,7 +293,12 @@ LOG CONTENT TO ANALYZE:
     async def _call_llm(self, prompt: str) -> str:
         """Call the LLM endpoint with the given prompt."""
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            # Add detailed logging
+            logger.info(f"Making LLM request to {self.llm_config.endpoint}/v1/chat/completions")
+            logger.info(f"Model: {self.llm_config.model}")
+            logger.info(f"Prompt length: {len(prompt)} characters")
+            
+            async with httpx.AsyncClient(timeout=120.0) as client:  # Increased timeout
                 payload = {
                     "model": self.llm_config.model,
                     "messages": [
@@ -249,25 +309,42 @@ LOG CONTENT TO ANALYZE:
                     "stream": False
                 }
                 
+                logger.info(f"Payload size: {len(str(payload))} characters")
+                
                 response = await client.post(
                     f"{self.llm_config.endpoint}/v1/chat/completions",
                     json=payload,
-                    headers={"Content-Type": "application/json"}
+                    headers={
+                        "Content-Type": "application/json",
+                        "Connection": "close"  # Force close connection after each request
+                    }
                 )
                 
-                response.raise_for_status()
+                logger.info(f"Response status: {response.status_code}")
+                
+                if response.status_code != 200:
+                    error_text = response.text
+                    logger.error(f"LLM API returned {response.status_code}: {error_text}")
+                    raise Exception(f"HTTP {response.status_code}: {error_text}")
+                
                 result = response.json()
                 
                 if "choices" in result and len(result["choices"]) > 0:
-                    return result["choices"][0]["message"]["content"]
+                    response_content = result["choices"][0]["message"]["content"]
+                    logger.info(f"LLM response length: {len(response_content)} characters")
+                    return response_content
                 else:
+                    logger.error(f"Invalid LLM response structure: {result}")
                     raise Exception("No response from LLM")
                     
         except httpx.TimeoutException:
+            logger.error("LLM request timed out")
             raise Exception("LLM request timed out")
         except httpx.HTTPError as e:
+            logger.error(f"HTTP error calling LLM: {e}")
             raise Exception(f"HTTP error calling LLM: {e}")
         except Exception as e:
+            logger.error(f"Error calling LLM: {e}")
             raise Exception(f"Error calling LLM: {e}")
     
     def _parse_llm_response(self, response: str, source: str) -> LogAnalysisResult:
@@ -311,7 +388,14 @@ LOG CONTENT TO ANALYZE:
             if not json_str and response.startswith("{") and response.endswith("}"):
                 json_str = response
             
+            # Method 4: Handle truncated JSON - if starts with { but no closing brace found
+            if not json_str and response.startswith("{"):
+                json_str = response
+            
             if json_str:
+                # Preprocess JSON string to fix common issues
+                json_str = self._preprocess_json_string(json_str)
+                
                 # Parse JSON
                 parsed = json.loads(json_str)
                 
@@ -324,7 +408,9 @@ LOG CONTENT TO ANALYZE:
                     confidence=float(parsed.get("confidence", 0.5))
                 )
             else:
-                # No JSON found - treat as raw text
+                # No JSON found - log the raw response and treat as raw text
+                logger.warning(f"No JSON structure found in LLM response")
+                logger.warning(f"Raw LLM response: {repr(response)}")
                 raise ValueError("No JSON structure found in response")
             
         except json.JSONDecodeError as e:

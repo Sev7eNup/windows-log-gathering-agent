@@ -14,8 +14,8 @@ clients:
       windows_logs:
         - "C$/Windows/Logs/CBS/CBS.log"
     powershell_commands:
-      - "Get-WinEvent -LogName System -MaxEvents 250 | Where-Object {$_.LevelDisplayName -eq 'Error' -or $_.LevelDisplayName -eq 'Critical'}"
-      - "Get-WinEvent -LogName Application -MaxEvents 250 | Where-Object {$_.LevelDisplayName -eq 'Error' -or $_.LevelDisplayName -eq 'Critical'}"
+      - "Get-WinEvent -LogName System -MaxEvents 50 | Where-Object {$_.LevelDisplayName -eq 'Error' -or $_.LevelDisplayName -eq 'Critical'}"
+      - "Get-WinEvent -LogName Application -MaxEvents 50 | Where-Object {$_.LevelDisplayName -eq 'Error' -or $_.LevelDisplayName -eq 'Critical'}"
       - "Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, WindowsBuildLabEx, WindowsCurrentVersion"
       - "Get-Process | Where-Object {$_.CPU -gt 10} | Sort-Object CPU -Descending | Select-Object -First 10 Name, CPU, WorkingSet"
 
